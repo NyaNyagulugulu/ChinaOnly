@@ -17,6 +17,7 @@
 - 自动检测并拒绝代理/VPN连接
 - 检测ISP/ORG名称中的代理/VPN关键词
 - 支持IPv4和IPv6地址
+- 使用SQLite数据库缓存IP地理位置信息，减少API调用
 
 ## 依赖
 
@@ -49,13 +50,23 @@ mvn clean package
 ### BungeeCord代理
 将 `ChinaOnly-Bungee/target/chinaonly-bungee-1.0-SNAPSHOT.jar` 放入代理的 `plugins/` 目录
 
+## 数据库功能
+
+插件使用SQLite数据库来缓存IP地理位置信息，以提高性能并减少API调用次数：
+
+- 数据库文件位置：`plugins/ChinaOnly/chinaonly.db`
+- 当玩家连接时，插件首先查询数据库中的IP信息
+- 如果数据库中没有该IP的记录，则调用API获取信息并保存到数据库
+- 后续相同IP的连接将直接使用数据库中的信息
+
 ## 已完成的工作
 
 1. 完善了根目录的pom.xml，设置为父项目并包含所有子模块
 2. 完善了ChinaOnly-paper模块的功能，包括IP地理位置检测和代理识别
-3. 完善了ChinaOnly-velocity模块的功能，包括异步IP检测
+3. 完善了ChinaOnly-velocity模块的功能，包括同步IP检测
 4. 完善了ChinaOnly-Bungee模块的功能，与其它模块保持一致
 5. 为所有模块统一了依赖版本
-6. 创建了详细的README文档
+6. 实现了SQLite数据库功能，缓存IP地理位置信息
+7. 创建了详细的README文档
 
 所有三个模块现在都能成功构建。
