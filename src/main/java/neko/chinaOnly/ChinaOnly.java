@@ -21,19 +21,19 @@ public final class ChinaOnly extends JavaPlugin implements Listener {
     public void onEnable() {
         // Plugin startup logic
         getServer().getPluginManager().registerEvents(this, this);
-        getLogger().info("ChinaOnly plugin has been enabled!");
+        getLogger().info("ChinaOnly插件已启用！");
     }
 
     @Override
     public void onDisable() {
         // Plugin shutdown logic
-        getLogger().info("ChinaOnly plugin has been disabled!");
+        getLogger().info("ChinaOnly插件已禁用！");
     }
 
     @EventHandler
     public void onPlayerLogin(PlayerLoginEvent event) {
         String playerIP = event.getAddress().getHostAddress();
-        getLogger().info("Player " + event.getPlayer().getName() + " is connecting from IP: " + playerIP);
+        getLogger().info("玩家 " + event.getPlayer().getName() + " 正从IP地址: " + playerIP + " 连接");
 
         // 处理IPv6地址格式
         playerIP = normalizeIP(playerIP);
@@ -57,14 +57,14 @@ public final class ChinaOnly extends JavaPlugin implements Listener {
             String potentialIPv4 = ip.substring(7);
             // 检查是否是有效的IPv4地址格式
             if (isValidIPv4(potentialIPv4)) {
-                getLogger().info("Extracted IPv4 from IPv6 mapped address: " + ip + " -> " + potentialIPv4);
+                getLogger().info("从IPv6映射地址中提取IPv4: " + ip + " -> " + potentialIPv4);
                 return potentialIPv4;
             }
         }
         
         // 处理压缩的IPv6地址（如 ::1）
         if (ip.equals("::1")) {
-            getLogger().info("Interpreting ::1 as localhost (127.0.0.1)");
+            getLogger().info("将 ::1 视为本地回环地址 (127.0.0.1)");
             return "127.0.0.1";
         }
         
@@ -133,7 +133,8 @@ public final class ChinaOnly extends JavaPlugin implements Listener {
             }
             reader.close();
 
-            JsonObject jsonResponse = JsonParser.parseString(response.toString()).getAsJsonObject();
+            JsonParser parser = new JsonParser();
+            JsonObject jsonResponse = parser.parse(response.toString()).getAsJsonObject();
             
             // 检查API响应状态
             String status = jsonResponse.get("status").getAsString();
