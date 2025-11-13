@@ -85,6 +85,9 @@ public final class ChinaOnlyBungee extends Plugin implements Listener {
         if (parts.length != 4) {
             return false;
         }
+        if (parts.length != 4) {
+            return false;
+        }
 
         try {
             for (String part : parts) {

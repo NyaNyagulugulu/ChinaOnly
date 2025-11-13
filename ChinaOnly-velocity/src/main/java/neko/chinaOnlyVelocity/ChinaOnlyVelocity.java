@@ -15,6 +15,8 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.sql.DriverManager;
+import java.sql.SQLException;
 
 @Plugin(
     id = "chinaonly-velocity",
@@ -30,9 +32,19 @@ public class ChinaOnlyVelocity {
     
     @Inject
     private ProxyServer proxyServer;
+    
+    private DatabaseManager databaseManager;
 
     @Subscribe
     public void onProxyInitialization(ProxyInitializeEvent event) {
+        // 初始化数据库
+        try {
+            Class.forName("org.sqlite.JDBC");
+            databaseManager = new DatabaseManager();
+        } catch (ClassNotFoundException e) {
+            logger.error("无法加载SQLite JDBC驱动: {}", e.getMessage());
+        }
+        
         logger.info("ChinaOnly-velocity插件已启用！");
     }
 
@@ -109,7 +121,17 @@ public class ChinaOnlyVelocity {
      * 检测IP是否属于中国且不是代理
      */
     private boolean isFromChinaAndNotProxy(String ip) {
-        // 检查IP地理位置
+        // 首先从数据库中查找IP信息
+        if (databaseManager != null) {
+            IPInfo ipInfo = databaseManager.getIPInfo(ip);
+            if (ipInfo != null) {
+                logger.info("从数据库中获取IP信息: {} -> {}", ip, 
+                    (ipInfo.isChinaRegion() && !ipInfo.isProxy() ? "允许" : "拒绝"));
+                return ipInfo.isChinaRegion() && !ipInfo.isProxy();
+            }
+        }
+
+        // 数据库中没有找到，通过API检测IP归属地
         return checkIPGeolocation(ip);
     }
 
@@ -184,6 +206,11 @@ public class ChinaOnlyVelocity {
                     logger.warn("IP来自中国但ISP/ORG可能为代理服务: {} | {}", isp, org);
                     return false;
                 }
+            }
+
+            // 将IP信息保存到数据库
+            if (databaseManager != null) {
+                databaseManager.saveIPInfo(ip, jsonResponse, isFromChinaRegion);
             }
 
             return isFromChinaRegion && !proxy;

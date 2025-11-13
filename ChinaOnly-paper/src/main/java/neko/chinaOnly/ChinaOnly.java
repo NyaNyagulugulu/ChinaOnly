@@ -11,22 +11,37 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.sql.DriverManager;
+import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
 public final class ChinaOnly extends JavaPlugin implements Listener {
+    private DatabaseManager databaseManager;
 
     @Override
     public void onEnable() {
         // Plugin startup logic
         getServer().getPluginManager().registerEvents(this, this);
+        
+        // 初始化数据库
+        try {
+            Class.forName("org.sqlite.JDBC");
+            databaseManager = new DatabaseManager();
+        } catch (ClassNotFoundException e) {
+            getLogger().severe("无法加载SQLite JDBC驱动: " + e.getMessage());
+        }
+        
         getLogger().info("ChinaOnly插件已启用！");
     }
 
     @Override
     public void onDisable() {
         // Plugin shutdown logic
+        if (databaseManager != null) {
+            databaseManager.close();
+        }
         getLogger().info("ChinaOnly插件已禁用！");
     }
 
@@ -38,26 +53,11 @@ public final class ChinaOnly extends JavaPlugin implements Listener {
         // 处理IPv6地址格式
         playerIP = normalizeIP(playerIP);
 
-        // 允许本地IP地址连接（局域网测试）
-//        if (isLocalIP(playerIP)) {
-//            getLogger().info("允许本地IP地址连接: " + playerIP);
-//            return;
-//        }
-
         if (!isFromChinaAndNotProxy(playerIP)) {
             event.disallow(PlayerLoginEvent.Result.KICK_OTHER, 
                 "仅允许来自中国大陆的家庭用户连接。代理、VPN或非中国地区的IP地址已被拒绝。");
         }
     }
-
-    /**
-     * 检查是否为本地IP地址
-     */
-//    private boolean isLocalIP(String ip) {
-//        return ip.startsWith("192.168.") || ip.startsWith("10.") ||
-//               ip.startsWith("172.") || ip.equals("127.0.0.1") ||
-//               ip.equals("localhost") || ip.startsWith("175.152.");
-//    }
 
     /**
      * 标准化IP地址，处理IPv6映射的IPv4地址
@@ -116,7 +116,17 @@ public final class ChinaOnly extends JavaPlugin implements Listener {
      * 检测IP是否属于中国且不是代理
      */
     private boolean isFromChinaAndNotProxy(String ip) {
-        // 检查IP地理位置
+        // 首先从数据库中查找IP信息
+        if (databaseManager != null) {
+            IPInfo ipInfo = databaseManager.getIPInfo(ip);
+            if (ipInfo != null) {
+                getLogger().info("从数据库中获取IP信息: " + ip + " -> " + 
+                    (ipInfo.isChinaRegion() && !ipInfo.isProxy() ? "允许" : "拒绝"));
+                return ipInfo.isChinaRegion() && !ipInfo.isProxy();
+            }
+        }
+
+        // 数据库中没有找到，通过API检测IP归属地
         return checkIPGeolocation(ip);
     }
 
@@ -190,6 +200,11 @@ public final class ChinaOnly extends JavaPlugin implements Listener {
                     getLogger().warning("IP来自中国但ISP/ORG可能为代理服务: " + isp + " | " + org);
                     return false;
                 }
+            }
+            
+            // 将IP信息保存到数据库
+            if (databaseManager != null) {
+                databaseManager.saveIPInfo(ip, jsonResponse, isFromChinaRegion);
             }
             
             return isFromChinaRegion && !proxy;
