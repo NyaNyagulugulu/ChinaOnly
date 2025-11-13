@@ -124,6 +124,7 @@ public final class ChinaOnlyBungee extends Plugin implements Listener {
             int responseCode = connection.getResponseCode();
             if (responseCode != 200) {
                 getLogger().warning("IP地理位置API返回错误状态码: " + responseCode);
+                // 无法识别的IP地址，拒绝连接
                 return false;
             }
 
@@ -142,6 +143,7 @@ public final class ChinaOnlyBungee extends Plugin implements Listener {
             String status = jsonResponse.get("status").getAsString();
             if (!"success".equals(status)) {
                 getLogger().warning("IP地理位置API返回失败: " + jsonResponse.get("message").getAsString());
+                // 无法识别的IP地址，拒绝连接
                 return false;
             }
 
@@ -181,6 +183,7 @@ public final class ChinaOnlyBungee extends Plugin implements Listener {
 
         } catch (Exception e) {
             getLogger().warning("无法检测IP归属地: " + e.getMessage());
+            // 出现异常时，拒绝连接以确保安全性
             return false;
         }
     }

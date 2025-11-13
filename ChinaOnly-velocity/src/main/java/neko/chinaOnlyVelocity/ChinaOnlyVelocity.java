@@ -44,15 +44,12 @@ public class ChinaOnlyVelocity {
         // 处理IPv6地址格式
         playerIP = normalizeIP(playerIP);
 
-        // 异步检查IP归属地，避免阻塞网络线程
-        String finalPlayerIP = playerIP;
-        this.proxyServer.getScheduler().buildTask(this, () -> {
-            if (!isFromChinaAndNotProxy(finalPlayerIP)) {
-                event.setResult(PreLoginEvent.PreLoginComponentResult.denied(
-                    Component.text("仅允许来自中国大陆的家庭用户连接。代理、VPN或非中国地区的IP地址已被拒绝。")));
-            }
-            // 如果IP有效，则不设置结果，连接继续
-        }).schedule();
+        // 同步检查IP归属地，阻塞网络线程直到检查完成
+        if (!isFromChinaAndNotProxy(playerIP)) {
+            event.setResult(PreLoginEvent.PreLoginComponentResult.denied(
+                Component.text("仅允许来自中国大陆的家庭用户连接。代理、VPN或非中国地区的IP地址已被拒绝。")));
+        }
+        // 如果IP有效，则不设置结果，连接继续
     }
 
     /**
@@ -133,6 +130,7 @@ public class ChinaOnlyVelocity {
             int responseCode = connection.getResponseCode();
             if (responseCode != 200) {
                 logger.warn("IP地理位置API返回错误状态码: {}", responseCode);
+                // 无法识别的IP地址，拒绝连接
                 return false;
             }
 
@@ -151,6 +149,7 @@ public class ChinaOnlyVelocity {
             String status = jsonResponse.get("status").getAsString();
             if (!"success".equals(status)) {
                 logger.warn("IP地理位置API返回失败: {}", jsonResponse.get("message").getAsString());
+                // 无法识别的IP地址，拒绝连接
                 return false;
             }
 
@@ -191,6 +190,7 @@ public class ChinaOnlyVelocity {
 
         } catch (Exception e) {
             logger.warn("无法检测IP归属地: {}", e.getMessage());
+            // 出现异常时，拒绝连接以确保安全性
             return false;
         }
     }
