@@ -59,6 +59,14 @@ mvn clean package
 - 如果数据库中没有该IP的记录，则调用API获取信息并保存到数据库
 - 后续相同IP的连接将直接使用数据库中的信息
 
+## CI/CD
+
+本项目使用GitHub Actions进行持续集成和持续部署：
+
+- 每次推送到`main`分支时会自动构建项目
+- 当创建新的Git标签时，会自动发布新版本到GitHub Releases
+- 构建产物会作为artifacts保存，可随时下载
+
 ## 已完成的工作
 
 1. 完善了根目录的pom.xml，设置为父项目并包含所有子模块
@@ -68,5 +76,6 @@ mvn clean package
 5. 为所有模块统一了依赖版本
 6. 实现了SQLite数据库功能，缓存IP地理位置信息
 7. 创建了详细的README文档
+8. 配置了GitHub Actions自动化构建和发布流程
 
 所有三个模块现在都能成功构建。
