@@ -26,7 +26,7 @@ jobs:
         distribution: 'temurin'
 
     - name: Cache Maven packages
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: ~/.m2
         key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
@@ -36,21 +36,21 @@ jobs:
       run: mvn -B clean package --file pom.xml
 
     - name: Upload Paper JAR
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: ChinaOnly-paper
         path: ChinaOnly-paper/target/ChinaOnly-paper-*.jar
         if-no-files-found: error
 
     - name: Upload Velocity JAR
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: ChinaOnly-velocity
         path: ChinaOnly-velocity/target/ChinaOnly-velocity-*.jar
         if-no-files-found: error
 
     - name: Upload Bungee JAR
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: ChinaOnly-Bungee
         path: ChinaOnly-Bungee/target/chinaonly-bungee-*.jar
