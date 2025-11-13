@@ -1,0 +1,12 @@
+{
+  "id": "chinaonly-velocity",
+  "name": "ChinaOnly-velocity",
+  "version": "1.0-SNAPSHOT",
+  "description": "A Velocity plugin to restrict connections to China only",
+  "authors": [
+    "不穿胖次の小奶猫"
+  ],
+  "url": "https://cnmsb.xin/",
+  "main": "neko.chinaOnlyVelocity.ChinaOnlyVelocity",
+  "dependencies": []
+}

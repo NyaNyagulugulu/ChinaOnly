@@ -1,0 +1,61 @@
+# ChinaOnly
+
+一个Minecraft服务器插件，用于限制仅来自中国地区的玩家连接。
+
+## 项目结构
+
+本项目包含三个模块：
+
+- `ChinaOnly-paper`: PaperMC服务端插件
+- `ChinaOnly-velocity`: Velocity代理服务端插件
+- `ChinaOnly-Bungee`: BungeeCord代理服务端插件
+
+## 功能特点
+
+- 检测玩家IP地址的地理位置
+- 仅允许来自中国大陆、香港、澳门、台湾的玩家连接
+- 自动检测并拒绝代理/VPN连接
+- 检测ISP/ORG名称中的代理/VPN关键词
+- 支持IPv4和IPv6地址
+
+## 依赖
+
+- PaperMC 1.18+ (或兼容版本)
+- Velocity 3.0.0+ (或兼容版本)
+- BungeeCord 1.21+ (或兼容版本)
+- Java 17+
+
+## 配置
+
+插件使用免费的IP地理位置API (ip-api.com) 来检测IP归属地，无需额外配置。
+
+## 构建
+
+```bash
+# 在项目根目录执行
+mvn clean package
+```
+
+生成的JAR文件将位于各模块的 `target/` 目录下。
+
+## 安装
+
+### Paper服务器
+将 `ChinaOnly-paper/target/ChinaOnly-paper-1.0-SNAPSHOT.jar` 放入服务器的 `plugins/` 目录
+
+### Velocity代理
+将 `ChinaOnly-velocity/target/ChinaOnly-velocity-1.0-SNAPSHOT.jar` 放入代理的 `plugins/` 目录
+
+### BungeeCord代理
+将 `ChinaOnly-Bungee/target/chinaonly-bungee-1.0-SNAPSHOT.jar` 放入代理的 `plugins/` 目录
+
+## 已完成的工作
+
+1. 完善了根目录的pom.xml，设置为父项目并包含所有子模块
+2. 完善了ChinaOnly-paper模块的功能，包括IP地理位置检测和代理识别
+3. 完善了ChinaOnly-velocity模块的功能，包括异步IP检测
+4. 完善了ChinaOnly-Bungee模块的功能，与其它模块保持一致
+5. 为所有模块统一了依赖版本
+6. 创建了详细的README文档
+
+所有三个模块现在都能成功构建。

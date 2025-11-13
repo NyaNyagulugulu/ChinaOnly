@@ -1,47 +1,58 @@
-package neko.chinaOnly;
+package neko.chinaOnlyVelocity;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import org.bukkit.event.EventHandler;
-import org.bukkit.event.Listener;
-import org.bukkit.event.player.PlayerLoginEvent;
-import org.bukkit.plugin.java.JavaPlugin;
+import com.google.inject.Inject;
+import com.velocitypowered.api.event.Subscribe;
+import com.velocitypowered.api.event.connection.PreLoginEvent;
+import com.velocitypowered.api.event.proxy.ProxyInitializeEvent;
+import com.velocitypowered.api.plugin.Plugin;
+import com.velocitypowered.api.proxy.ProxyServer;
+import net.kyori.adventure.text.Component;
+import org.slf4j.Logger;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
 
-public final class ChinaOnly extends JavaPlugin implements Listener {
+@Plugin(
+    id = "chinaonly-velocity",
+    name = "ChinaOnly-velocity",
+    version = "1.0-SNAPSHOT",
+    url = "https://cnmsb.xin/",
+    authors = {"不穿胖次の小奶猫"}
+)
+public class ChinaOnlyVelocity {
 
-    @Override
-    public void onEnable() {
-        // Plugin startup logic
-        getServer().getPluginManager().registerEvents(this, this);
-        getLogger().info("ChinaOnly插件已启用！");
+    @Inject
+    private Logger logger;
+    
+    @Inject
+    private ProxyServer proxyServer;
+
+    @Subscribe
+    public void onProxyInitialization(ProxyInitializeEvent event) {
+        logger.info("ChinaOnly-velocity插件已启用！");
     }
 
-    @Override
-    public void onDisable() {
-        // Plugin shutdown logic
-        getLogger().info("ChinaOnly插件已禁用！");
-    }
-
-    @EventHandler
-    public void onPlayerLogin(PlayerLoginEvent event) {
-        String playerIP = event.getAddress().getHostAddress();
-        getLogger().info("玩家 " + event.getPlayer().getName() + " 正从IP地址: " + playerIP + " 连接");
+    @Subscribe
+    public void onPreLogin(PreLoginEvent event) {
+        String playerIP = event.getConnection().getRemoteAddress().getAddress().getHostAddress();
+        logger.info("玩家 {} 正从IP地址: {} 连接", event.getUsername(), playerIP);
 
         // 处理IPv6地址格式
         playerIP = normalizeIP(playerIP);
 
-        if (!isFromChinaAndNotProxy(playerIP)) {
-            event.disallow(PlayerLoginEvent.Result.KICK_OTHER, 
-                "仅允许来自中国大陆的家庭用户连接。代理、VPN或非中国地区的IP地址已被拒绝。");
-        }
+        // 异步检查IP归属地，避免阻塞网络线程
+        String finalPlayerIP = playerIP;
+        this.proxyServer.getScheduler().buildTask(this, () -> {
+            if (!isFromChinaAndNotProxy(finalPlayerIP)) {
+                event.setResult(PreLoginEvent.PreLoginComponentResult.denied(
+                    Component.text("仅允许来自中国大陆的家庭用户连接。代理、VPN或非中国地区的IP地址已被拒绝。")));
+            }
+            // 如果IP有效，则不设置结果，连接继续
+        }).schedule();
     }
 
     /**
@@ -51,23 +62,23 @@ public final class ChinaOnly extends JavaPlugin implements Listener {
         if (ip == null || ip.isEmpty()) {
             return ip;
         }
-        
+
         // 处理IPv4映射的IPv6地址，如 ::ffff:192.168.1.1
         if (ip.startsWith("::ffff:") && ip.length() > 7) {
             String potentialIPv4 = ip.substring(7);
             // 检查是否是有效的IPv4地址格式
             if (isValidIPv4(potentialIPv4)) {
-                getLogger().info("从IPv6映射地址中提取IPv4: " + ip + " -> " + potentialIPv4);
+                logger.info("从IPv6映射地址中提取IPv4: {} -> {}", ip, potentialIPv4);
                 return potentialIPv4;
             }
         }
-        
+
         // 处理压缩的IPv6地址（如 ::1）
         if (ip.equals("::1")) {
-            getLogger().info("将 ::1 视为本地回环地址 (127.0.0.1)");
+            logger.info("将 ::1 视为本地回环地址 (127.0.0.1)");
             return "127.0.0.1";
         }
-        
+
         return ip;
     }
 
@@ -78,12 +89,12 @@ public final class ChinaOnly extends JavaPlugin implements Listener {
         if (ip == null || ip.isEmpty()) {
             return false;
         }
-        
+
         String[] parts = ip.split("\\.");
         if (parts.length != 4) {
             return false;
         }
-        
+
         try {
             for (String part : parts) {
                 int num = Integer.parseInt(part);
@@ -121,7 +132,7 @@ public final class ChinaOnly extends JavaPlugin implements Listener {
 
             int responseCode = connection.getResponseCode();
             if (responseCode != 200) {
-                getLogger().warning("IP地理位置API返回错误状态码: " + responseCode);
+                logger.warn("IP地理位置API返回错误状态码: {}", responseCode);
                 return false;
             }
 
@@ -135,11 +146,11 @@ public final class ChinaOnly extends JavaPlugin implements Listener {
 
             JsonParser parser = new JsonParser();
             JsonObject jsonResponse = parser.parse(response.toString()).getAsJsonObject();
-            
+
             // 检查API响应状态
             String status = jsonResponse.get("status").getAsString();
             if (!"success".equals(status)) {
-                getLogger().warning("IP地理位置API返回失败: " + jsonResponse.get("message").getAsString());
+                logger.warn("IP地理位置API返回失败: {}", jsonResponse.get("message").getAsString());
                 return false;
             }
 
@@ -150,58 +161,58 @@ public final class ChinaOnly extends JavaPlugin implements Listener {
             String isp = jsonResponse.has("isp") ? jsonResponse.get("isp").getAsString() : "";
             String org = jsonResponse.has("org") ? jsonResponse.get("org").getAsString() : "";
             boolean proxy = jsonResponse.has("proxy") ? jsonResponse.get("proxy").getAsBoolean() : false;
-            
-            getLogger().info("IP归属地信息: " + ip + " -> " + country + " (" + countryCode + "), " + region + ", " + city + " | ISP: " + isp + " | ORG: " + org + " | Proxy: " + proxy);
+
+            logger.info("IP归属地信息: {} -> {} ({}) {} {} | ISP: {} | ORG: {} | Proxy: {}", 
+                       ip, country, countryCode, region, city, isp, org, proxy);
 
             // 检查国家代码是否为中国(CN)、香港(HK)、澳门(MO)或台湾(TW)
-            boolean isFromChinaRegion = "CN".equals(countryCode) || "HK".equals(countryCode) || 
+            boolean isFromChinaRegion = "CN".equals(countryCode) || "HK".equals(countryCode) ||
                                        "MO".equals(countryCode) || "TW".equals(countryCode);
-            
+
             // 如果IP被API标记为代理/VPN，则拒绝
             if (proxy) {
-                getLogger().warning("IP被标记为代理/VPN服务: " + ip);
+                logger.warn("IP被标记为代理/VPN服务: {}", ip);
                 return false;
             }
-            
+
             // 额外检查ISP/ORG是否为代理服务
             if (isFromChinaRegion) {
                 String lowerIsp = isp.toLowerCase();
                 String lowerOrg = org.toLowerCase();
-                
+
                 // 检查ISP或ORG名称中是否包含代理/VPN相关的关键词
                 if (containsProxyKeywords(lowerIsp) || containsProxyKeywords(lowerOrg)) {
-                    getLogger().warning("IP来自中国但ISP/ORG可能为代理服务: " + isp + " | " + org);
+                    logger.warn("IP来自中国但ISP/ORG可能为代理服务: {} | {}", isp, org);
                     return false;
                 }
             }
-            
+
             return isFromChinaRegion && !proxy;
 
         } catch (Exception e) {
-            getLogger().warning("无法检测IP归属地: " + e.getMessage());
+            logger.warn("无法检测IP归属地: {}", e.getMessage());
             return false;
         }
     }
-    
+
     /**
      * 检查字符串是否包含代理相关关键词
      */
     private boolean containsProxyKeywords(String text) {
         if (text == null) return false;
-        
+
         String[] proxyKeywords = {
             "proxy", "vpn", "shadowsocks", "v2ray", "trojan", "openvpn", "wireguard",
             "代理", "翻墙", "机场", "ss", "ssr", "v2ray", "trojan", "加速器", "线路"
         };
-        
+
         String lowerText = text.toLowerCase();
         for (String keyword : proxyKeywords) {
             if (lowerText.contains(keyword.toLowerCase())) {
                 return true;
             }
         }
-        
+
         return false;
     }
 }
-
