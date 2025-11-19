@@ -2,24 +2,17 @@ package neko.chinaOnlyVelocity;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import com.google.gson.JsonSyntaxException;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonArray;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import com.google.inject.Inject;
-import com.velocitypowered.api.event.Subscribe;
-import com.velocitypowered.api.event.connection.PreLoginEvent;
-import com.velocitypowered.api.event.proxy.ProxyInitializeEvent;
-import com.velocitypowered.api.plugin.Plugin;
-import com.velocitypowered.api.proxy.ProxyServer;
-import net.kyori.adventure.text.Component;
+import com.velocitypowered.api.event.Subscribe;
+import com.velocitypowered.api.event.connection.PreLoginEvent;
+import com.velocitypowered.api.event.proxy.ProxyInitializeEvent;
+import com.velocitypowered.api.plugin.Plugin;
+import com.velocitypowered.api.plugin.annotation.DataDirectory;
+import com.velocitypowered.api.proxy.ProxyServer;
+import net.kyori.adventure.text.Component;
 import org.slf4j.Logger;
-import ninja.leaping.configurate.ConfigurationNode;
-import ninja.leaping.configurate.yaml.YAMLConfigurationLoader;
 
 import java.io.BufferedReader;
-import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
@@ -28,10 +21,6 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.sql.DriverManager;
-import java.sql.SQLException;
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -41,7 +30,8 @@ import java.util.Set;
     name = "ChinaOnly-velocity",
     version = "1.0-SNAPSHOT",
     url = "https://cnmsb.xin/",
-    authors = {"不穿胖次の小奶猫"}
+    authors = {"不穿胖次の小奶猫"},
+    description = "A Velocity plugin to restrict connections by region"
 )
 public class ChinaOnlyVelocity {
 
@@ -51,31 +41,40 @@ public class ChinaOnlyVelocity {
     @Inject
     private ProxyServer proxyServer;
     
-    @Inject
-    @Plugin
-    private com.velocitypowered.api.plugin.PluginContainer pluginContainer;
-    
-    private DatabaseManager databaseManager;
-    private Set<String> deniedRegions;
-    private boolean enableRegionRestriction;
+    @Inject
+    private com.velocitypowered.api.plugin.PluginContainer pluginContainer;
+    
+    @Inject
+    @DataDirectory
+    private Path dataDirectory;
+    
+    private DatabaseManager databaseManager;
+    private Set<String> deniedRegions;
+    private boolean enableRegionRestriction;
     private String deniedMessage;
-    private Path dataDirectory;
 
-    @Subscribe
-    public void onProxyInitialization(ProxyInitializeEvent event) {
-        // 初始化配置
-        this.dataDirectory = proxyServer.getConfiguration().getBaseDirectory().resolve("ChinaOnly-velocity");
-        loadConfiguration();
-        
-        // 初始化数据库
-        try {
-            Class.forName("org.sqlite.JDBC");
-            databaseManager = new DatabaseManager();
-        } catch (ClassNotFoundException e) {
-            logger.error("无法加载SQLite JDBC驱动: {}", e.getMessage());
-        }
-        
-        logger.info("ChinaOnly-velocity插件已启用！");
+    @Subscribe
+    public void onProxyInitialization(ProxyInitializeEvent event) {
+        // 初始化配置
+        this.dataDirectory = this.dataDirectory.resolve("ChinaOnly-velocity");
+        if (!Files.exists(this.dataDirectory)) {
+            try {
+                Files.createDirectories(this.dataDirectory);
+            } catch (IOException e) {
+                logger.error("无法创建插件数据目录: {}", e.getMessage());
+            }
+        }
+        loadConfiguration();
+        
+        // 初始化数据库
+        try {
+            Class.forName("org.sqlite.JDBC");
+            databaseManager = new DatabaseManager();
+        } catch (ClassNotFoundException e) {
+            logger.error("无法加载SQLite JDBC驱动: {}", e.getMessage());
+        }
+        
+        logger.info("ChinaOnly-velocity插件已启用！");
     }
 
     private void loadConfiguration() {
@@ -100,26 +99,44 @@ public class ChinaOnlyVelocity {
                 }
             }
 
-            // 使用 Configurate 加载 YAML 配置
-            YAMLConfigurationLoader loader = YAMLConfigurationLoader.builder()
-                .setPath(configFile)
-                .build();
-            ConfigurationNode config = loader.load();
-
-            // 读取配置项
-            List<Object> regionsList = config.getNode("denied-regions").getList(Object.class);
+            // 简单地读取YAML文件，逐行解析
             this.deniedRegions = new HashSet<>();
-            if (regionsList != null) {
-                for (Object region : regionsList) {
-                    String regionStr = region.toString();
-                    if (regionStr != null && !regionStr.trim().isEmpty()) {
-                        this.deniedRegions.add(regionStr.trim().toUpperCase());
+            this.enableRegionRestriction = false; // 默认为false，允许所有区域
+            this.deniedMessage = "你所在的区域拒绝连接！或者是你正在使用VPN";
+
+            List<String> lines = Files.readAllLines(configFile);
+            for (String line : lines) {
+                line = line.trim();
+                // 解析被拒绝的地区列表
+                if (line.contains("denied-regions:") || line.contains("-")) {
+                    if (line.contains("-") && !line.contains("#")) {
+                        // 提取地区代码，例如 - 'CN' 或 - CN
+                        String regionLine = line.replace("-", "").trim();
+                        if (regionLine.startsWith("'") || regionLine.startsWith("\"")) {
+                            regionLine = regionLine.substring(1);
+                        }
+                        if (regionLine.endsWith("'") || regionLine.endsWith("\"")) {
+                            regionLine = regionLine.substring(0, regionLine.length() - 1);
+                        }
+                        regionLine = regionLine.trim();
+                        if (!regionLine.isEmpty() && !regionLine.equals("''") && !regionLine.equals("\"\"")) {
+                            this.deniedRegions.add(regionLine.toUpperCase());
+                        }
                     }
+                } else if (line.startsWith("enable-region-restriction:")) {
+                    String value = line.replace("enable-region-restriction:", "").trim();
+                    this.enableRegionRestriction = Boolean.parseBoolean(value);
+                } else if (line.startsWith("denied-message:")) {
+                    String value = line.replace("denied-message:", "").trim();
+                    if (value.startsWith("\"") || value.startsWith("'")) {
+                        value = value.substring(1);
+                    }
+                    if (value.endsWith("\"") || value.endsWith("'")) {
+                        value = value.substring(0, value.length() - 1);
+                    }
+                    this.deniedMessage = value;
                 }
             }
-
-            this.enableRegionRestriction = config.getNode("enable-region-restriction").getBoolean(false); // 默认为false，允许所有区域
-            this.deniedMessage = config.getNode("denied-message").getString("你所在的区域拒绝连接！或者是你正在使用VPN");
         } catch (Exception e) {
             logger.error("无法加载配置文件: {}", e.getMessage());
             // 设置默认值
@@ -202,7 +219,7 @@ public class ChinaOnlyVelocity {
             return false;
         }
 
-        String[] parts = ip.split("\\\\.");
+        String[] parts = ip.split("\\.");
         if (parts.length != 4) {
             return false;
         }
