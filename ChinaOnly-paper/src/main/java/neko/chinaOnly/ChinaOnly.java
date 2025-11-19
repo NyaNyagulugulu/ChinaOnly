@@ -37,9 +37,12 @@ public final class ChinaOnly extends JavaPlugin implements Listener {
         // 初始化数据库
         try {
             Class.forName("org.sqlite.JDBC");
-            databaseManager = new DatabaseManager();
-        } catch (ClassNotFoundException e) {
-            getLogger().severe("无法加载SQLite JDBC驱动: " + e.getMessage());
+            // 使用插件的数据目录
+            java.nio.file.Path pluginDataDir = getDataFolder().toPath();
+            java.nio.file.Files.createDirectories(pluginDataDir);
+            databaseManager = new DatabaseManager(pluginDataDir);
+        } catch (ClassNotFoundException | java.io.IOException e) {
+            getLogger().severe("无法加载SQLite JDBC驱动或创建数据目录: " + e.getMessage());
         }
         
         getLogger().info("ChinaOnly插件已启用！");

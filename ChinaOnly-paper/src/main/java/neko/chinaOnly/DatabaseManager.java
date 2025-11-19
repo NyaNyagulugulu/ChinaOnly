@@ -3,27 +3,29 @@ package neko.chinaOnly;
 import com.google.gson.JsonObject;
 
 import java.io.File;
+import java.nio.file.Path;
 import java.sql.*;
 
 public class DatabaseManager {
     private static final String DB_FILE = "chinaonly.db";
-    private static final String DB_PATH = "plugins/ChinaOnly/" + DB_FILE;
     private Connection connection;
+    private Path dataDirectory;
 
-    public DatabaseManager() {
+    public DatabaseManager(Path dataDirectory) {
+        this.dataDirectory = dataDirectory;
         initDatabase();
     }
 
     private void initDatabase() {
         try {
             // 创建插件数据目录
-            File dataFolder = new File("plugins/ChinaOnly");
-            if (!dataFolder.exists()) {
-                dataFolder.mkdirs();
-            }
+            java.nio.file.Files.createDirectories(dataDirectory);
+
+            // 构建数据库路径
+            String dbPath = dataDirectory.resolve(DB_FILE).toString();
 
             // 连接到SQLite数据库
-            connection = DriverManager.getConnection("jdbc:sqlite:" + DB_PATH);
+            connection = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
             
             // 创建IP信息表
             String createTableSQL = "CREATE TABLE IF NOT EXISTS ip_info (" +
@@ -44,7 +46,7 @@ public class DatabaseManager {
                 stmt.execute(createTableSQL);
             }
             
-        } catch (SQLException e) {
+        } catch (SQLException | java.io.IOException e) {
             e.printStackTrace();
         }
     }

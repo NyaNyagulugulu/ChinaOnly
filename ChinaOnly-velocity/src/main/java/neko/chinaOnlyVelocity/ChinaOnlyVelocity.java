@@ -55,8 +55,7 @@ public class ChinaOnlyVelocity {
 
     @Subscribe
     public void onProxyInitialization(ProxyInitializeEvent event) {
-        // 初始化配置
-        this.dataDirectory = this.dataDirectory.resolve("ChinaOnly-velocity");
+        // 初始化配置 - 直接使用注入的dataDirectory，不创建子目录
         if (!Files.exists(this.dataDirectory)) {
             try {
                 Files.createDirectories(this.dataDirectory);
@@ -69,7 +68,7 @@ public class ChinaOnlyVelocity {
         // 初始化数据库
         try {
             Class.forName("org.sqlite.JDBC");
-            databaseManager = new DatabaseManager();
+            databaseManager = new DatabaseManager(this.dataDirectory);
         } catch (ClassNotFoundException e) {
             logger.error("无法加载SQLite JDBC驱动: {}", e.getMessage());
         }
