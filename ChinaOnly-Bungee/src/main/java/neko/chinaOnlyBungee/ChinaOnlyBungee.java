@@ -1,50 +1,103 @@
-package neko.chinaOnlyBungee;
-
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
-import net.md_5.bungee.api.ChatColor;
-import net.md_5.bungee.api.chat.TextComponent;
-import net.md_5.bungee.api.connection.PendingConnection;
-import net.md_5.bungee.api.event.LoginEvent;
-import net.md_5.bungee.api.event.PostLoginEvent;
-import net.md_5.bungee.api.plugin.Listener;
-import net.md_5.bungee.api.plugin.Plugin;
-import net.md_5.bungee.event.EventHandler;
-
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
-import java.net.URL;
-
-public final class ChinaOnlyBungee extends Plugin implements Listener {
-
-    @Override
-    public void onEnable() {
-        // Plugin startup logic
-        getProxy().getPluginManager().registerListener(this, this);
-        getLogger().info("ChinaOnly-Bungee插件已启用！");
-    }
-
-    @Override
-    public void onDisable() {
-        // Plugin shutdown logic
-        getLogger().info("ChinaOnly-Bungee插件已禁用！");
-    }
-
-    @EventHandler
-    public void onLogin(LoginEvent event) {
-        PendingConnection connection = event.getConnection();
-        String playerIP = connection.getAddress().getAddress().getHostAddress();
-        getLogger().info("玩家 " + connection.getName() + " 正从IP地址: " + playerIP + " 连接");
-
-        // 处理IPv6地址格式
-        playerIP = normalizeIP(playerIP);
-
-        if (!isFromChinaAndNotProxy(playerIP)) {
-            event.setCancelled(true);
-            event.setCancelReason(new TextComponent(ChatColor.RED + "仅允许来自中国大陆的家庭用户连接。代理、VPN或非中国地区的IP地址已被拒绝。"));
-        }
-    }
+package neko.chinaOnlyBungee;
+
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import net.md_5.bungee.api.ChatColor;
+import net.md_5.bungee.api.chat.TextComponent;
+import net.md_5.bungee.api.config.ConfigurationAdapter;
+import net.md_5.bungee.api.connection.PendingConnection;
+import net.md_5.bungee.api.event.LoginEvent;
+import net.md_5.bungee.api.event.PostLoginEvent;
+import net.md_5.bungee.api.plugin.Listener;
+import net.md_5.bungee.api.plugin.Plugin;
+import net.md_5.bungee.config.Configuration;
+import net.md_5.bungee.config.ConfigurationProvider;
+import net.md_5.bungee.config.YamlConfiguration;
+import net.md_5.bungee.event.EventHandler;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+
+public final class ChinaOnlyBungee extends Plugin implements Listener {
+    private Set<String> deniedRegions;
+    private boolean enableRegionRestriction;
+    private String deniedMessage;
+
+    @Override
+    public void onEnable() {
+        // 加载配置文件
+        loadConfiguration();
+        // Plugin startup logic
+        getProxy().getPluginManager().registerListener(this, this);
+        getLogger().info("ChinaOnly-Bungee插件已启用！");
+    }
+
+    @Override
+    public void onDisable() {
+        // Plugin shutdown logic
+        getLogger().info("ChinaOnly-Bungee插件已禁用！");
+    }
+
+    private void loadConfiguration() {
+        try {
+            // 确保配置文件存在
+            if (!getDataFolder().exists()) {
+                getDataFolder().mkdir();
+            }
+
+            File configFile = new File(getDataFolder(), "config.yml");
+            if (!configFile.exists()) {
+                // 从resources复制默认配置文件
+                try (InputStream in = getResourceAsStream("config.yml")) {
+                    Files.copy(in, configFile.toPath());
+                }
+            }
+
+            // 加载配置
+            Configuration config = ConfigurationProvider.getProvider(YamlConfiguration.class).load(configFile);
+            List<String> regions = config.getStringList("denied-regions");
+            // 过滤掉空字符串
+            this.deniedRegions = new HashSet<>();
+            for (String region : regions) {
+                if (region != null && !region.trim().isEmpty()) {
+                    this.deniedRegions.add(region.trim().toUpperCase());
+                }
+            }
+            this.enableRegionRestriction = config.getBoolean("enable-region-restriction", true);
+            this.deniedMessage = config.getString("denied-message", "仅允许来自中国大陆的家庭用户连接。代理、VPN或非中国地区的IP地址已被拒绝。");
+        } catch (IOException e) {
+            getLogger().severe("无法加载配置文件: " + e.getMessage());
+            // 设置默认值
+            this.deniedRegions = new HashSet<>();
+            this.enableRegionRestriction = true;
+            this.deniedMessage = "仅允许来自中国大陆的家庭用户连接。代理、VPN或非中国地区的IP地址已被拒绝。";
+        }
+    }
+
+    @EventHandler
+    public void onLogin(LoginEvent event) {
+        PendingConnection connection = event.getConnection();
+        String playerIP = connection.getAddress().getAddress().getHostAddress();
+        getLogger().info("玩家 " + connection.getName() + " 正从IP地址: " + playerIP + " 连接");
+
+        // 处理IPv6地址格式
+        playerIP = normalizeIP(playerIP);
+
+        if (!isFromChinaAndNotProxy(playerIP)) {
+            event.setCancelled(true);
+            event.setCancelReason(new TextComponent(ChatColor.RED + deniedMessage));
+        }
+    }
 
     /**
      * 标准化IP地址，处理IPv6映射的IPv4地址
@@ -102,12 +155,20 @@ public final class ChinaOnlyBungee extends Plugin implements Listener {
         }
     }
 
-    /**
-     * 检测IP是否属于中国且不是代理
-     */
-    private boolean isFromChinaAndNotProxy(String ip) {
-        // 检查IP地理位置
-        return checkIPGeolocation(ip);
+    /**
+     * 检测IP是否属于中国且不是代理
+     */
+    private boolean isFromChinaAndNotProxy(String ip) {
+        // 检查IP地理位置
+        return checkIPGeolocation(ip);
+    }
+
+    /**
+     * 检查国家代码是否在拒绝列表中
+     */
+    private boolean isRegionDenied(String countryCode) {
+        if (countryCode == null) return false;
+        return deniedRegions.contains(countryCode.toUpperCase());
     }
 
     /**
@@ -170,18 +231,26 @@ public final class ChinaOnlyBungee extends Plugin implements Listener {
                 return false;
             }
 
-            // 额外检查ISP/ORG是否为代理服务
-            if (isFromChinaRegion) {
-                String lowerIsp = isp.toLowerCase();
-                String lowerOrg = org.toLowerCase();
-
-                // 检查ISP或ORG名称中是否包含代理/VPN相关的关键词
-                if (containsProxyKeywords(lowerIsp) || containsProxyKeywords(lowerOrg)) {
-                    getLogger().warning("IP来自中国但ISP/ORG可能为代理服务: " + isp + " | " + org);
-                    return false;
-                }
-            }
-
+            // 额外检查ISP/ORG是否为代理服务
+            if (isFromChinaRegion) {
+                String lowerIsp = isp.toLowerCase();
+                String lowerOrg = org.toLowerCase();
+
+                // 检查ISP或ORG名称中是否包含代理/VPN相关的关键词
+                if (containsProxyKeywords(lowerIsp) || containsProxyKeywords(lowerOrg)) {
+                    getLogger().warning("IP来自中国但ISP/ORG可能为代理服务: " + isp + " | " + org);
+                    return false;
+                }
+            }
+
+            // 检查地区限制
+            if (enableRegionRestriction && isFromChinaRegion && !proxy) {
+                if (isRegionDenied(countryCode)) {
+                    getLogger().info("IP来自被拒绝的地区: " + countryCode + " - " + ip);
+                    return false;
+                }
+            }
+
             return isFromChinaRegion && !proxy;
 
         } catch (Exception e) {

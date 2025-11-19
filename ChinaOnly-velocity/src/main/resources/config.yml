@@ -1,0 +1,15 @@
+# ChinaOnly-velocity 配置文件
+# 地区限制配置 - 设置不允许连接的地区
+# 默认允许所有地区连接，如需限制特定地区，请将其添加到 denied-regions 列表中
+# 例如，如果不想允许台湾地区连接，可以将 'TW' 添加到列表中
+
+# 不允许连接的地区列表
+# 有效值: CN (中国大陆), HK (香港), MO (澳门), TW (台湾)
+denied-regions:
+  - ''  # 默认为空，表示允许所有地区
+
+# 是否启用地区限制功能 (true/false) - 默认为 false，即允许所有地区
+enable-region-restriction: true
+
+# 当玩家被拒绝连接时显示的消息
+denied-message: "你所在的区域拒绝连接！或者是你正在使用VPN"
